@@ -6,6 +6,7 @@ logging.disable(logging.CRITICAL)
 import multiprocessing as mp
 import time as timer
 logging.disable(logging.CRITICAL)
+import gc
 
 
 # Single core rollout to sample trajectories
@@ -18,6 +19,7 @@ def do_rollout(
         horizon = 1e6,
         base_seed = None,
         env_kwargs=None,
+        device_id=0,
 ):
     """
     :param num_traj:    number of trajectories (int)
@@ -33,6 +35,9 @@ def do_rollout(
     # get the correct env behavior
     if type(env) == str:
         env = GymEnv(env)
+        if env_kwargs and 'rrl_kwargs' in env_kwargs:
+            from rrl.multicam import RRL
+            env = RRL(env, **env_kwargs['rrl_kwargs'], device_id=device_id)
     elif isinstance(env, GymEnv):
         env = env
     elif callable(env):
@@ -93,6 +98,7 @@ def do_rollout(
         paths.append(path)
 
     del(env)
+    gc.collect()
     return paths
 
 
@@ -128,7 +134,7 @@ def sample_paths(
         input_dict = dict(num_traj=paths_per_cpu, env=env, policy=policy,
                           eval_mode=eval_mode, horizon=horizon,
                           base_seed=base_seed + i * paths_per_cpu,
-                          env_kwargs=env_kwargs)
+                          env_kwargs=env_kwargs, device_id=i)
         input_dict_list.append(input_dict)
     if suppress_print is False:
         start_time = timer.time()
